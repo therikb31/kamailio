@@ -1643,6 +1643,7 @@ static int alias_port_ip_match(str *c1, str *c2)
 }
 
 static str subs_terminated = {"terminated", 10};
+static str subs_terminated_deactivated = {"terminated;reason=deactivated", 29};
 static str subs_active = {"active;expires=", 15};
 
 /**
@@ -1699,10 +1700,18 @@ void create_notifications(udomain_t *_t, impurecord_t *r_passed,
 	while(s) {
 		LM_DBG("Scrolling through reg subscribers for this IMPU [%.*s]\n",
 				r->public_identity.len, r->public_identity.s);
+		LM_DBG("Event Type: %d\n",event_type);
 
 		create_notification = 0;
-
-		if(s->expires > act_time) {
+		
+		// Fix to set subscription state as terminated for Deregistration
+		if(event_type == 10){
+			STR_PKG_DUP(subscription_state, subs_terminated_deactivated, "pkg subs state");
+			LM_DBG("Deregistering Contact! Subscription state: "
+				   "[%.*s]\n",
+					subscription_state.len, subscription_state.s);
+		}
+		else if(s->expires > act_time) {
 			subscription_state.s = (char *)pkg_malloc(32 * sizeof(char *));
 			subscription_state.len = 0;
 			if(subscription_state.s) {
@@ -1716,7 +1725,6 @@ void create_notifications(udomain_t *_t, impurecord_t *r_passed,
 			LM_DBG("Expires is greater than current time! Subscription state: "
 				   "[%.*s]\n",
 					subscription_state.len, subscription_state.s);
-
 		} else {
 			STR_PKG_DUP(subscription_state, subs_terminated, "pkg subs state");
 			LM_DBG("Expires is past than current time! Subscription state: "
@@ -1734,6 +1742,9 @@ void create_notifications(udomain_t *_t, impurecord_t *r_passed,
 							== 0)) {
 				LM_DBG("This is a fix to ensure that we only send full reg "
 					   "info XML to the UE that just subscribed.\n");
+				LM_DBG("Handling Network Initiated Deregistration! Subscription state: "
+				   "[%.*s]\n",
+					subscription_state.len, subscription_state.s);
 				create_notification = 1;
 			}
 		} else if(event_type == IMS_REGISTRAR_CONTACT_REGISTERED
